@@ -39,58 +39,21 @@ interface SchoolLoginProps {
 const testimonials = [
   {
     id: 1,
-    name: "Dr. Sarah Johnson",
-    role: "Mathematics Coordinator",
-    school: "International Academy",
-    image: "https://randomuser.me/api/portraits/women/32.jpg",
-    quote: "IB Mathematics Choice transformed our course selection process. The data-driven recommendations matched students perfectly with their optimal math path.",
+    name: "Mrs. Belmonte",
+    role: "Mathematics Department Head",
+    school: "St. Pauls School",
+    image: "/image/belmonte_profile.jpg", // Updated to use local image
+    quote: "The IB Mathematics Choice platform has been instrumental in guiding our students to the appropriate math course. The detailed analytics provide invaluable insight into each student's strengths and areas for growth.",
     stars: 5
   },
   {
     id: 2,
-    name: "Prof. David Chen",
-    role: "IB Diploma Director",
-    school: "Global School of Excellence",
-    image: "https://randomuser.me/api/portraits/men/42.jpg",
-    quote: "As a school administrator, I appreciate the comprehensive analytics and reports. Our students are now thriving in their recommended courses.",
+    name: "Mr. Nascimento",
+    role: "IB Mathematics Teacher",
+    school: "St. Pauls School",
+    image: "/image/nascimento_profile.jpg", // Updated to use local image
+    quote: "This tool has transformed how we advise students on their mathematical journey. The personalized recommendations align perfectly with what we observe in classroom performance.",
     stars: 5
-  },
-  {
-    id: 3,
-    name: "Emily Richardson",
-    role: "Lead Mathematics Teacher",
-    school: "European International School",
-    image: "https://randomuser.me/api/portraits/women/45.jpg",
-    quote: "The platform's recommendations have proven remarkably accurate. We've seen significant improvement in student performance and confidence.",
-    stars: 5
-  }
-];
-
-// School partner logos
-const partnerLogos = [
-  {
-    name: "International Academy",
-    logo: "https://placehold.co/200x80/e2e8f0/475569?text=Academy"
-  },
-  {
-    name: "European School",
-    logo: "https://placehold.co/200x80/e2e8f0/475569?text=European"
-  },
-  {
-    name: "American International",
-    logo: "https://placehold.co/200x80/e2e8f0/475569?text=American"
-  },
-  {
-    name: "Asian Pacific School",
-    logo: "https://placehold.co/200x80/e2e8f0/475569?text=Pacific"
-  },
-  {
-    name: "British International",
-    logo: "https://placehold.co/200x80/e2e8f0/475569?text=British"
-  },
-  {
-    name: "Global Leadership",
-    logo: "https://placehold.co/200x80/e2e8f0/475569?text=Global"
   }
 ];
 
@@ -620,7 +583,13 @@ const SchoolLogin: React.FC<SchoolLoginProps> = ({ onSchoolLogin, onRegister }) 
                 
                 <div className="mt-6 text-center">
                   <motion.button
-                    onClick={() => comparisonRef.current?.scrollIntoView({ behavior: 'smooth' })}
+                    onClick={() => {
+                      // Usar scrollIntoView com a opção 'start' para garantir que role para o início da tabela
+                      const tableElement = document.querySelector('.detailed-comparison-table');
+                      if (tableElement) {
+                        tableElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                      }
+                    }}
                     className="px-4 py-2 bg-white text-indigo-600 rounded-lg shadow-md font-medium text-sm inline-flex items-center"
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
@@ -650,7 +619,7 @@ const SchoolLogin: React.FC<SchoolLoginProps> = ({ onSchoolLogin, onRegister }) 
           </div>
           
           {/* Detailed Comparison Table */}
-          <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
+          <div className="bg-white rounded-2xl shadow-lg overflow-hidden detailed-comparison-table">
             <div className="px-6 py-5 border-b border-gray-200 bg-gray-50">
               <h3 className="text-lg font-medium text-gray-900">Detailed Course Comparison</h3>
             </div>
@@ -776,28 +745,6 @@ const SchoolLogin: React.FC<SchoolLoginProps> = ({ onSchoolLogin, onRegister }) 
           </div>
         </div>
       </motion.div>
-      
-      {/* Partner Logos Section */}
-      <div className="py-12 bg-gradient-to-b from-white to-indigo-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-8">
-            <h2 className="text-2xl font-bold text-gray-800">Trusted by Leading IB Schools</h2>
-            <div className="h-1 w-16 bg-indigo-600 mx-auto my-3 rounded-full"></div>
-          </div>
-          
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-8 items-center justify-items-center">
-            {partnerLogos.map((partner, index) => (
-              <motion.div 
-                key={index}
-                className="w-full h-20 flex items-center justify-center p-4 bg-white rounded-lg shadow-sm filter grayscale hover:grayscale-0 transition-all hover:shadow-md"
-                whileHover={{ scale: 1.05 }}
-              >
-                <img src={partner.logo} alt={partner.name} className="max-h-full max-w-full" />
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </div>
       
       {/* How It Works Section */}
       <motion.div 
