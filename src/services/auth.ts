@@ -6,14 +6,14 @@ export interface User {
   name: string;
   role: 'admin' | 'teacher' | 'student';
   email?: string;
-  school?: string;
+  registrationCode?: string;
 }
 
 // Registro de estudante
 export interface StudentRegistration {
   name: string;
   email: string;
-  school?: string;
+  registrationCode: string;
   password?: string;
   sendResults: boolean;
 }
@@ -22,6 +22,20 @@ export interface StudentRegistration {
 const VALID_CREDENTIALS = [
   { username: 'admin', password: 'ibmaths2025', user: { id: '1', username: 'admin', name: 'Administrator', role: 'admin' } },
   { username: 'teacher', password: 'stpauls', user: { id: '2', username: 'teacher', name: 'Teacher Account', role: 'teacher' } },
+];
+
+// Códigos de registro válidos para demonstração
+const VALID_REGISTRATION_CODES = [
+  'REG-MATH-94872',
+  'REG-MATH-38751',
+  'REG-MATH-29463',
+  'REG-MATH-57390',
+  'REG-MATH-16284',
+  'REG-MATH-72951',
+  'REG-MATH-83621',
+  'REG-MATH-46018',
+  'REG-MATH-59273',
+  'REG-MATH-31748'
 ];
 
 export const login = async (username: string, password: string): Promise<User | null> => {
@@ -65,6 +79,14 @@ export const checkAuth = (): boolean => {
 // Registrar um novo estudante
 export const registerStudent = async (registration: StudentRegistration): Promise<User | null> => {
   try {
+    // Verificar se o código de registro é válido
+    const isCodeValid = VALID_REGISTRATION_CODES.includes(registration.registrationCode.trim().toUpperCase());
+    
+    if (!isCodeValid) {
+      console.error('Invalid registration code:', registration.registrationCode);
+      return null;
+    }
+    
     // Em uma implementação real, isso criaria um usuário no Supabase Auth
     // e armazenaria as preferências do usuário
     
@@ -75,7 +97,7 @@ export const registerStudent = async (registration: StudentRegistration): Promis
       name: registration.name,
       role: 'student',
       email: registration.email,
-      school: registration.school
+      registrationCode: registration.registrationCode
     };
     
     // Armazenar preferência para receber resultados por email
