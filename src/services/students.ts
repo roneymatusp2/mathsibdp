@@ -1,3 +1,5 @@
+import { addQuestionario, getAllQuestionarios, getQuestionarioById, exportQuestionariosToCSV } from './supabase';
+
 // Tipos
 export interface StudentRecord {
   id: string;
@@ -6,13 +8,13 @@ export interface StudentRecord {
   timestamp: string;
   recommendedCourse: string;
   confidenceScore: number;
-  answers: Record<string, string>;
+  answers: Record<string, string[]>;
 }
 
-// Simulação de banco de dados em memória/localStorage
+// FALLBACK in case Supabase is not available
 const STORAGE_KEY = 'ibmaths_student_records';
 
-// Dados de exemplo para inicialização
+// Sample data for initialization
 const sampleStudents: StudentRecord[] = [
   {
     id: '1',
@@ -21,7 +23,7 @@ const sampleStudents: StudentRecord[] = [
     timestamp: '2025-03-25T14:32:00Z',
     recommendedCourse: 'AA HL',
     confidenceScore: 87,
-    answers: { career_field1: 'aa_hl', skill1: 'aa_hl' }
+    answers: { career_field1: ['aa_hl'], skill1: ['aa_hl'] }
   },
   {
     id: '2',
@@ -30,7 +32,7 @@ const sampleStudents: StudentRecord[] = [
     timestamp: '2025-03-25T15:45:00Z',
     recommendedCourse: 'AI SL',
     confidenceScore: 92,
-    answers: { career_field1: 'ai_sl', skill1: 'ai_sl' }
+    answers: { career_field1: ['ai_sl'], skill1: ['ai_sl'] }
   },
   {
     id: '3',
@@ -39,7 +41,7 @@ const sampleStudents: StudentRecord[] = [
     timestamp: '2025-03-26T10:15:00Z',
     recommendedCourse: 'AI HL',
     confidenceScore: 78,
-    answers: { career_field1: 'ai_hl', skill1: 'ai_hl' }
+    answers: { career_field1: ['ai_hl'], skill1: ['ai_hl'] }
   },
   {
     id: '4',
@@ -48,7 +50,7 @@ const sampleStudents: StudentRecord[] = [
     timestamp: '2025-03-26T11:20:00Z',
     recommendedCourse: 'AA SL',
     confidenceScore: 81,
-    answers: { career_field1: 'aa_sl', skill1: 'aa_sl' }
+    answers: { career_field1: ['aa_sl'], skill1: ['aa_sl'] }
   },
   {
     id: '5',
@@ -57,39 +59,103 @@ const sampleStudents: StudentRecord[] = [
     timestamp: '2025-03-26T13:05:00Z',
     recommendedCourse: 'AA HL',
     confidenceScore: 94,
-    answers: { career_field1: 'aa_hl', skill1: 'aa_hl' }
+    answers: { career_field1: ['aa_hl'], skill1: ['aa_hl'] }
   }
 ];
 
-// Inicialização
+// Local fallback initialization
 const initStorage = (): void => {
   if (!localStorage.getItem(STORAGE_KEY)) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(sampleStudents));
   }
 };
 
-// Obter todos os registros
-export const getAllStudentRecords = (): StudentRecord[] => {
+// Get all records
+export const getAllStudentRecords = async (): Promise<StudentRecord[]> => {
+  try {
+    // Try to fetch from Supabase first
+    const records = await getAllQuestionarios();
+    if (records && records.length > 0) {
+      return records.map(record => ({
+        id: record.id,
+        name: record.name,
+        email: record.email,
+        timestamp: record.timestamp,
+        recommendedCourse: record.recommended_course,
+        confidenceScore: record.confidence_score,
+        answers: record.answers
+      }));
+    }
+  } catch (error) {
+    console.error('Error fetching records from Supabase, using local fallback:', error);
+  }
+  
+  // Fallback to localStorage
   initStorage();
   const records = localStorage.getItem(STORAGE_KEY);
   return records ? JSON.parse(records) : [];
 };
 
-// Obter registro por ID
-export const getStudentRecordById = (id: string): StudentRecord | null => {
-  const records = getAllStudentRecords();
+// Get record by ID
+export const getStudentRecordById = async (id: string): Promise<StudentRecord | null> => {
+  try {
+    // Try to fetch from Supabase first
+    const record = await getQuestionarioById(id);
+    if (record) {
+      return {
+        id: record.id,
+        name: record.name,
+        email: record.email,
+        timestamp: record.timestamp,
+        recommendedCourse: record.recommended_course,
+        confidenceScore: record.confidence_score,
+        answers: record.answers
+      };
+    }
+  } catch (error) {
+    console.error(`Error fetching record ${id} from Supabase, using local fallback:`, error);
+  }
+  
+  // Fallback to localStorage
+  const records = await getAllStudentRecords();
   return records.find(record => record.id === id) || null;
 };
 
-// Adicionar novo registro
-export const addStudentRecord = (
+// Add new record
+export const addStudentRecord = async (
   studentName: string, 
   studentEmail: string, 
   recommendedCourse: string, 
   confidenceScore: number,
-  answers: Record<string, string>
-): StudentRecord => {
-  const records = getAllStudentRecords();
+  answers: Record<string, string[]>
+): Promise<StudentRecord> => {
+  try {
+    // Try to add to Supabase first
+    const record = await addQuestionario(
+      studentName,
+      studentEmail,
+      recommendedCourse,
+      confidenceScore,
+      answers
+    );
+    
+    if (record) {
+      return {
+        id: record.id,
+        name: record.name,
+        email: record.email,
+        timestamp: record.timestamp,
+        recommendedCourse: record.recommended_course,
+        confidenceScore: record.confidence_score,
+        answers: record.answers
+      };
+    }
+  } catch (error) {
+    console.error('Error adding record to Supabase, using local fallback:', error);
+  }
+  
+  // Fallback to localStorage
+  const records = await getAllStudentRecords();
   
   const newRecord: StudentRecord = {
     id: Date.now().toString(),
@@ -107,12 +173,27 @@ export const addStudentRecord = (
   return newRecord;
 };
 
-// Exportar para CSV
-export const exportStudentsToCSV = (records: StudentRecord[] = getAllStudentRecords()): string => {
-  // Cabeçalhos
+// Export to CSV
+export const exportStudentsToCSV = async (records?: StudentRecord[]): Promise<string> => {
+  try {
+    // Try to export from Supabase first
+    const csv = await exportQuestionariosToCSV();
+    if (csv) {
+      return csv;
+    }
+  } catch (error) {
+    console.error('Error exporting records from Supabase, using local fallback:', error);
+  }
+  
+  // Fallback to localStorage
+  if (!records) {
+    records = await getAllStudentRecords();
+  }
+  
+  // Headers
   const headers = ['ID', 'Name', 'Email', 'Date', 'Recommended Course', 'Confidence Score'];
   
-  // Converter dados para formato CSV
+  // Convert data to CSV format
   const csvRows = [
     headers.join(','),
     ...records.map(student => {

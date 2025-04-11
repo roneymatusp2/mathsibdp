@@ -5,16 +5,28 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "prebuild": "node scripts/remove-bom.js",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "check-bom": "node scripts/remove-bom.js",
+    "test-email": "node scripts/sendTestEmail.js",
+    "direct-email": "node scripts/directTestEmail.js"
   },
   "dependencies": {
     "@headlessui/react": "^2.2.0",
+    "@sendgrid/mail": "^8.1.5",
+    "@supabase/supabase-js": "^2.39.8",
+    "chart.js": "^4.4.8",
+    "framer-motion": "^12.6.3",
+    "jspdf": "^3.0.1",
+    "jspdf-autotable": "^5.0.2",
     "lucide-react": "^0.344.0",
     "react": "^18.3.1",
+    "react-chartjs-2": "^5.3.0",
     "react-dom": "^18.3.1",
-    "react-router-dom": "^7.4.0"
+    "react-router-dom": "^7.4.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@eslint/js": "^9.9.1",
@@ -28,6 +40,7 @@
     "globals": "^15.9.0",
     "postcss": "^8.4.35",
     "tailwindcss": "^3.4.1",
+    "terser": "^5.39.0",
     "typescript": "^5.5.3",
     "typescript-eslint": "^8.3.0",
     "vite": "^5.4.2"

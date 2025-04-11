@@ -4,6 +4,8 @@ import { questions } from '../data/questions';
 
 interface QuestionnaireFormProps {
   onSubmit: (answers: Record<string, string[]>) => void;
+  onLogout?: () => void;
+  onCompleteLogout?: () => void;
 }
 
 function QuestionnaireForm({ onSubmit }: QuestionnaireFormProps) {
@@ -110,6 +112,14 @@ function QuestionnaireForm({ onSubmit }: QuestionnaireFormProps) {
       onSubmit(answers);
     } else {
       setCurrentSection(prev => prev + 1);
+      
+      // Adiciona scroll suave para a primeira pergunta da próxima seção
+      setTimeout(() => {
+        const nextSectionFirstQuestion = document.querySelector('.question-container:first-of-type');
+        if (nextSectionFirstQuestion) {
+          nextSectionFirstQuestion.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      }, 100);
     }
   };
 
@@ -240,7 +250,7 @@ function QuestionnaireForm({ onSubmit }: QuestionnaireFormProps) {
         {currentQuestions.map((question, qIndex) => (
           <div 
             key={question.id} 
-            className="bg-white rounded-xl shadow-lg overflow-hidden transform transition-all duration-300 hover:shadow-xl"
+            className="bg-white rounded-xl shadow-lg overflow-hidden transform transition-all duration-300 hover:shadow-xl question-container"
           >
             <div className={`h-1 bg-gradient-to-r ${sections[currentSection].color}`} />
             <div className="p-6">

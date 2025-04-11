@@ -1,6 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { SchoolAuthProvider } from './services/SchoolAuthContext';
+import { SchoolThemeProvider } from './services/SchoolThemeProvider';
+import SchoolPortal from './components/SchoolPortal';
 import { BookOpen, BrainCircuit, Calculator, BarChart as ChartBar, LockKeyhole, School, Globe } from 'lucide-react';
 import QuestionnaireForm from './components/QuestionnaireForm';
+import StudentInfo from './components/StudentInfo';
 import Results from './components/Results';
 import Welcome from './components/Welcome';
 import SampleProblems from './components/SampleProblems';
@@ -10,9 +14,23 @@ import EarlyAccessGateway from './components/EarlyAccessGateway';
 import { login, logout, getCurrentUser, User } from './services/auth';
 import { addStudentRecord } from './services/students';
 
-type AppView = 'welcome' | 'questionnaire' | 'sample' | 'results' | 'login' | 'admin';
+type AppView = 'welcome' | 'student-info' | 'questionnaire' | 'sample' | 'results' | 'login' | 'admin';
 
 function App() {
+  // Use SchoolPortal for the multi-tier authentication
+  const [useSchoolPortal, setUseSchoolPortal] = useState(true);
+  
+  // If using SchoolPortal, don't show the regular app
+  if (useSchoolPortal) {
+    return (
+      <SchoolAuthProvider>
+        <SchoolThemeProvider>
+          <SchoolPortal />
+        </SchoolThemeProvider>
+      </SchoolAuthProvider>
+    );
+  }
+  
   // Main application state
   const [view, setView] = useState<AppView>('welcome');
   const [answers, setAnswers] = useState<Record<string, string[]>>({});
@@ -46,6 +64,12 @@ function App() {
 
   // Questionnaire handlers
   const handleStart = () => {
+    setView('student-info');
+  };
+
+  const handleStudentInfoSubmit = (name: string) => {
+    // Save student name for later use
+    setStudentInfo({ name, email: 'student@stpauls.school' });
     setView('questionnaire');
   };
 
@@ -126,6 +150,8 @@ function App() {
     switch (view) {
       case 'welcome':
         return <Welcome onStart={handleStart} />;
+      case 'student-info':
+        return <StudentInfo onSubmit={handleStudentInfoSubmit} />;
       case 'questionnaire':
         return <QuestionnaireForm onSubmit={handleQuestionnaireSubmit} />;
       case 'sample':
@@ -155,6 +181,8 @@ function App() {
   }
 
   return (
+    <SchoolAuthProvider>
+    <SchoolThemeProvider>
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 to-blue-50">
       <header className="bg-white shadow-sm sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 py-3 sm:px-6 lg:px-8 flex items-center justify-between">
@@ -243,6 +271,8 @@ function App() {
         </div>
       </footer>
     </div>
+    </SchoolThemeProvider>
+    </SchoolAuthProvider>
   );
 }
 

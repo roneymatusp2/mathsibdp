@@ -1,0 +1,810 @@
+import React, { useState, useRef, useEffect } from 'react';
+import { calculateResults } from '../utils/scoring';
+import { 
+  ArrowUpIcon as ArrowPathIcon, 
+  BookOpen, 
+  BrainCircuit, 
+  Calculator, 
+  BarChart as ChartBar, 
+  Save, 
+  Check,
+  Mail,
+  User,
+  Download,
+  FileSpreadsheet,
+  FileText,
+  ChevronDown,
+  ChevronUp,
+  Lightbulb,
+  GraduationCap,
+  Building
+} from 'lucide-react';
+import { motion } from 'framer-motion';
+import { Chart as ChartJS, RadialLinearScale, PointElement, LineElement, Filler, Tooltip, Legend, CategoryScale, LinearScale, BarElement } from 'chart.js';
+import { Radar, Bar } from 'react-chartjs-2';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
+import * as XLSX from 'xlsx';
+
+// Register ChartJS components
+ChartJS.register(
+  RadialLinearScale, 
+  PointElement, 
+  LineElement, 
+  Filler, 
+  Tooltip, 
+  Legend,
+  CategoryScale,
+  LinearScale,
+  BarElement
+);
+
+interface ResultsProps {
+  answers: Record<string, string[]>;
+  sampleAnswers: Record<string, string>;
+  onReset: () => void;
+  onSaveResults?: (name: string, email: string, course: string, confidence: number) => void;
+  studentInfo?: {name: string; email: string;} | null;
+}
+
+function Results({ 
+  answers, 
+  sampleAnswers, 
+  onReset, 
+  onSaveResults, 
+  studentInfo 
+}: ResultsProps) {
+  const results = calculateResults(answers);
+  const { course, level, confidence, details } = results;
+  
+  const [showSaveForm, setShowSaveForm] = useState(false);
+  const [name, setName] = useState(studentInfo?.name || '');
+  const [email, setEmail] = useState(studentInfo?.email || '');
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [showExportOptions, setShowExportOptions] = useState(false);
+  const [showAdvancedDetails, setShowAdvancedDetails] = useState(false);
+  
+  const componentRef = useRef<HTMLDivElement>(null);
+  
+  // Calculate detailed metrics for charts
+  const aaScore = Object.values(answers).flat().filter(a => a.includes('aa_')).length;
+  const aiScore = Object.values(answers).flat().filter(a => a.includes('ai_')).length;
+  const hlScore = Object.values(answers).flat().filter(a => a.includes('_hl')).length;
+  const slScore = Object.values(answers).flat().filter(a => a.includes('_sl')).length;
+  
+  // Prepare radar chart data
+  const radarData = {
+    labels: ['Analytical Thinking', 'Abstract Concepts', 'Problem Solving', 'Real-world Applications', 'Data Analysis', 'Technology Use'],
+    datasets: [
+      {
+        label: 'Your Profile',
+        data: [
+          course === 'AA' ? 65 + results.scores.aaPercent/5 : 40 + results.scores.aiPercent/5,
+          course === 'AA' ? 70 + results.scores.aaPercent/6 : 35 + results.scores.aiPercent/6,
+          level === 'HL' ? 65 + results.scores.hlPercent/5 : 45 + results.scores.slPercent/5,
+          course === 'AI' ? 70 + results.scores.aiPercent/5 : 40 + results.scores.aaPercent/5,
+          course === 'AI' ? 75 + results.scores.aiPercent/6 : 35 + results.scores.aaPercent/6,
+          level === 'HL' ? 60 + results.scores.hlPercent/5 : 50 + results.scores.slPercent/5,
+        ],
+        backgroundColor: 'rgba(53, 162, 235, 0.2)',
+        borderColor: 'rgba(53, 162, 235, 1)',
+        borderWidth: 2,
+      },
+    ],
+  };
+  
+  // Prepare bar chart data for course preference
+  const coursePreferenceData = {
+    labels: ['Analysis & Approaches', 'Applications & Interpretation'],
+    datasets: [
+      {
+        label: 'Course Preference Score',
+        data: [results.scores.aaPercent, results.scores.aiPercent],
+        backgroundColor: [
+          'rgba(0, 48, 135, 0.7)',  // school-navy
+          'rgba(231, 29, 54, 0.7)',  // school-red
+        ],
+        borderColor: [
+          'rgba(0, 48, 135, 1)',
+          'rgba(231, 29, 54, 1)',
+        ],
+        borderWidth: 1,
+      },
+    ],
+  };
+  
+  // Prepare bar chart data for level preference
+  const levelPreferenceData = {
+    labels: ['Higher Level', 'Standard Level'],
+    datasets: [
+      {
+        label: 'Level Preference Score',
+        data: [results.scores.hlPercent, results.scores.slPercent],
+        backgroundColor: [
+          'rgba(0, 48, 135, 0.7)',  // school-navy
+          'rgba(231, 29, 54, 0.7)',  // school-red
+        ],
+        borderColor: [
+          'rgba(0, 48, 135, 1)',
+          'rgba(231, 29, 54, 1)',
+        ],
+        borderWidth: 1,
+      },
+    ],
+  };
+  
+  // Chart options
+  const chartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    scales: {
+      y: {
+        beginAtZero: true
+      }
+    }
+  };
+  
+  // Radar chart options
+  const radarOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    scales: {
+      r: {
+        angleLines: {
+          display: true
+        },
+        suggestedMin: 0,
+        suggestedMax: 100
+      }
+    }
+  };
+
+  const handleSave = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (onSaveResults) {
+      onSaveResults(name, email, `${course} ${level}`, confidence);
+      setSaveSuccess(true);
+      setShowSaveForm(false);
+    }
+  };
+
+  // Generate course description
+  const getCourseDescription = () => {
+    if (course === 'AA' && level === 'HL') {
+      return {
+        title: "Mathematics: Analysis and Approaches HL",
+        focus: "Pure mathematical theory and proof-based learning",
+        suitable: "Future mathematics, physics, engineering, or computer science students",
+        topics: "Complex algebra, in-depth calculus, advanced proof techniques, vector geometry",
+        workload: "Heavy - approximately 7+ hours per week"
+      };
+    } else if (course === 'AA' && level === 'SL') {
+      return {
+        title: "Mathematics: Analysis and Approaches SL",
+        focus: "Mathematical theory with some applications",
+        suitable: "STEM-oriented students who need mathematics but not at the highest level",
+        topics: "Algebra, functions, trigonometry, calculus, statistics",
+        workload: "Moderate - approximately 4-5 hours per week"
+      };
+    } else if (course === 'AI' && level === 'HL') {
+      return {
+        title: "Mathematics: Applications and Interpretation HL",
+        focus: "Applied mathematics with technology and real-world modeling",
+        suitable: "Future economics, business, social sciences, or design students",
+        topics: "Statistics, probability, financial mathematics, modeling, some calculus",
+        workload: "Heavy - approximately 6-7 hours per week"
+      };
+    } else {
+      return {
+        title: "Mathematics: Applications and Interpretation SL",
+        focus: "Practical applications of mathematics with technology",
+        suitable: "Students needing mathematical literacy in non-STEM fields",
+        topics: "Basic statistics, probability, functions, financial math",
+        workload: "Moderate - approximately 3-4 hours per week"
+      };
+    }
+  };
+  
+  const courseInfo = getCourseDescription();
+
+  // Get the total number of selections made across all questions
+  const totalSelections = Object.values(answers).reduce((total, selections) => 
+    total + selections.length, 0
+  );
+  
+  // Export functions
+  const exportToPDF = () => {
+    if (!componentRef.current) return;
+    
+    const doc = new jsPDF();
+    
+    // Add title and logo (would need to be implemented)
+    doc.setFontSize(20);
+    doc.setTextColor(0, 48, 135); // school-navy color
+    doc.text("IB Mathematics Course Recommendation", 20, 20);
+    
+    // Add date
+    doc.setFontSize(10);
+    doc.setTextColor(100, 100, 100);
+    doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 20, 30);
+    
+    // Add student info if available
+    if (studentInfo?.name || name) {
+      doc.setFontSize(12);
+      doc.setTextColor(0, 0, 0);
+      doc.text(`Student: ${studentInfo?.name || name}`, 20, 40);
+      doc.text(`Email: ${studentInfo?.email || email}`, 20, 47);
+    }
+    
+    // Add recommendation
+    doc.setFontSize(16);
+    doc.setTextColor(231, 29, 54); // school-red color
+    doc.text("Recommended Course:", 20, 60);
+    
+    doc.setFontSize(14);
+    doc.setTextColor(0, 0, 0);
+    doc.text(courseInfo.title, 20, 70);
+    
+    // Add confidence
+    doc.setFontSize(12);
+    doc.text(`Recommendation Confidence: ${confidence}%`, 20, 80);
+    
+    // Add course details
+    doc.text("Course Details:", 20, 95);
+    
+    // Create table for course info
+    const courseDetails = [
+      ["Focus", courseInfo.focus],
+      ["Suitable for", courseInfo.suitable],
+      ["Key Topics", courseInfo.topics],
+      ["Expected Workload", courseInfo.workload]
+    ];
+    
+    // @ts-ignore (jspdf-autotable is imported via its side effects)
+    doc.autoTable({
+      startY: 100,
+      head: [["Aspect", "Details"]],
+      body: courseDetails,
+      theme: 'striped',
+      headStyles: { fillColor: [0, 48, 135] }
+    });
+    
+    // Add advice
+    // @ts-ignore (to get the final Y position from the table)
+    const finalY = (doc as any).lastAutoTable.finalY || 180;
+    
+    doc.text("Advice:", 20, finalY + 10);
+    
+    // Split long advice text to fit on the page
+    const splitAdvice = doc.splitTextToSize(details.advice, 170);
+    doc.text(splitAdvice, 20, finalY + 20);
+    
+    // Save the PDF
+    doc.save(`IB_Math_Recommendation_${studentInfo?.name || name || 'Student'}.pdf`);
+  };
+  
+  const exportToExcel = () => {
+    // Create worksheet data
+    const wsData = [
+      ["IB Mathematics Course Recommendation"],
+      [""],
+      ["Generated on:", new Date().toLocaleDateString()],
+      [""],
+      ["Student:", studentInfo?.name || name],
+      ["Email:", studentInfo?.email || email],
+      [""],
+      ["Recommended Course:", courseInfo.title],
+      ["Confidence:", `${confidence}%`],
+      [""],
+      ["Course Details"],
+      ["Focus:", courseInfo.focus],
+      ["Suitable for:", courseInfo.suitable],
+      ["Key Topics:", courseInfo.topics],
+      ["Expected Workload:", courseInfo.workload],
+      [""],
+      ["Advice:"],
+      [details.advice],
+      [""],
+      ["Profile Metrics"],
+      ["Analysis & Approaches Score:", `${results.scores.aaPercent.toFixed(1)}%`],
+      ["Applications & Interpretation Score:", `${results.scores.aiPercent.toFixed(1)}%`],
+      ["Higher Level Score:", `${results.scores.hlPercent.toFixed(1)}%`],
+      ["Standard Level Score:", `${results.scores.slPercent.toFixed(1)}%`],
+      ["Course Confidence:", `${results.scores.courseConfidence.toFixed(1)}%`],
+      ["Level Confidence:", `${results.scores.levelConfidence.toFixed(1)}%`],
+      ["Overall Confidence:", `${confidence}%`]
+    ];
+    
+    // Create worksheet
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    
+    // Create workbook
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Recommendation");
+    
+    // Generate file and trigger download
+    XLSX.writeFile(wb, `IB_Math_Recommendation_${studentInfo?.name || name || 'Student'}.xlsx`);
+  };
+
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: { 
+      opacity: 1,
+      transition: { 
+        staggerChildren: 0.1
+      }
+    }
+  };
+  
+  const itemVariants = {
+    hidden: { y: 20, opacity: 0 },
+    visible: { 
+      y: 0, 
+      opacity: 1,
+      transition: { duration: 0.5 }
+    }
+  };
+
+  return (
+    <div className="max-w-5xl mx-auto" ref={componentRef}>
+      <motion.div 
+        className="bg-white rounded-lg shadow-lg overflow-hidden"
+        initial="hidden"
+        animate="visible"
+        variants={containerVariants}
+      >
+        <div className="h-3 bg-gradient-to-r from-school-navy to-school-red"></div>
+        <div className="p-8">
+          <motion.div className="text-center mb-8" variants={itemVariants}>
+            <h2 className="text-4xl font-bold text-school-navy mb-4">
+              Your Recommended Course
+            </h2>
+            <motion.div 
+              className="inline-flex items-center px-6 py-4 rounded-full bg-gradient-to-r from-school-navy/10 to-school-red/10 text-school-navy text-2xl font-semibold"
+              whileHover={{ scale: 1.05 }}
+              transition={{ type: "spring", stiffness: 400, damping: 10 }}
+            >
+              {course === 'AA' ? (
+                <BookOpen className="h-7 w-7 mr-3 text-school-red" />
+              ) : (
+                <ChartBar className="h-7 w-7 mr-3 text-school-red" />
+              )}
+              {courseInfo.title}
+            </motion.div>
+          </motion.div>
+
+          <motion.div 
+            className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10" 
+            variants={itemVariants}
+          >
+            <div className="bg-school-navy/5 p-6 rounded-lg">
+              <h3 className="text-xl font-semibold mb-4 flex items-center text-school-navy">
+                <Lightbulb className="h-6 w-6 mr-2 text-school-red" />
+                Course Focus
+              </h3>
+              <p className="text-gray-700 mb-3">{details.focus}</p>
+              <div className="flex items-center mt-2 text-sm text-school-navy">
+                <GraduationCap className="h-5 w-5 mr-2 text-school-red" />
+                <span>Suitable for: {courseInfo.suitable}</span>
+              </div>
+            </div>
+
+            <div className="bg-school-navy/5 p-6 rounded-lg">
+              <h3 className="text-xl font-semibold mb-4 flex items-center text-school-navy">
+                <BrainCircuit className="h-6 w-6 mr-2 text-school-red" />
+                Learning Style Match
+              </h3>
+              <p className="text-gray-700 mb-3">{details.style}</p>
+              <div className="flex items-center mt-2 text-sm text-school-navy">
+                <Building className="h-5 w-5 mr-2 text-school-red" />
+                <span>Workload: {courseInfo.workload}</span>
+              </div>
+            </div>
+          </motion.div>
+          
+          <motion.div 
+            className="mb-10"
+            variants={itemVariants}
+          >
+            <h3 className="text-xl font-semibold mb-4 text-school-navy border-b border-gray-200 pb-2">
+              Your Mathematical Profile
+            </h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="col-span-1 bg-white p-4 rounded-lg border border-gray-200">
+                <h4 className="text-lg font-medium mb-4 text-school-navy text-center">Skills Radar</h4>
+                <div className="h-64">
+                  <Radar data={radarData} options={radarOptions} />
+                </div>
+              </div>
+              
+              <div className="col-span-1 bg-white p-4 rounded-lg border border-gray-200">
+                <h4 className="text-lg font-medium mb-4 text-school-navy text-center">Course Preference</h4>
+                <div className="h-64">
+                  <Bar data={coursePreferenceData} options={chartOptions} />
+                </div>
+              </div>
+              
+              <div className="col-span-1 bg-white p-4 rounded-lg border border-gray-200">
+                <h4 className="text-lg font-medium mb-4 text-school-navy text-center">Level Preference</h4>
+                <div className="h-64">
+                  <Bar data={levelPreferenceData} options={chartOptions} />
+                </div>
+              </div>
+            </div>
+          </motion.div>
+
+          {Object.keys(sampleAnswers).length > 0 && (
+            <motion.div 
+              className="bg-school-navy/5 p-6 rounded-lg mb-10"
+              variants={itemVariants}
+            >
+              <h3 className="text-xl font-semibold mb-3 text-school-navy">Sample Problem Results</h3>
+              <p className="text-gray-700">
+                You attempted {Object.keys(sampleAnswers).length} sample problems. These problems were designed
+                to give you a taste of different mathematical approaches you might encounter in your chosen course.
+              </p>
+            </motion.div>
+          )}
+
+          <motion.div 
+            className="bg-blue-50 border-l-4 border-school-navy p-5 mb-10 rounded-r"
+            variants={itemVariants}
+          >
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <svg className="h-6 w-6 text-school-navy" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <h3 className="text-lg font-medium text-school-navy flex items-center">
+                  Recommendation Confidence: 
+                  <div className="ml-2 bg-white px-2 py-1 rounded-md text-school-red font-bold">
+                    {confidence}%
+                  </div>
+                </h3>
+                <div className="mt-2 text-gray-700">
+                  <p>{details.advice}</p>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+          
+          <motion.div variants={itemVariants}>
+            <div className="flex flex-col sm:flex-row justify-between mb-10">
+              <div className="relative mb-4 sm:mb-0">
+                <button 
+                  onClick={() => setShowExportOptions(!showExportOptions)}
+                  className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Export Results
+                  {showExportOptions ? (
+                    <ChevronUp className="h-4 w-4 ml-2" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4 ml-2" />
+                  )}
+                </button>
+                
+                {showExportOptions && (
+                  <div className="absolute left-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-10">
+                    <div className="py-1">
+                      <button
+                        onClick={exportToPDF}
+                        className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      >
+                        <div className="flex items-center">
+                          <FileText className="h-4 w-4 mr-2 text-red-600" />
+                          Export as PDF
+                        </div>
+                      </button>
+                      <button
+                        onClick={exportToExcel}
+                        className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                      >
+                        <div className="flex items-center">
+                          <FileSpreadsheet className="h-4 w-4 mr-2 text-green-600" />
+                          Export as Excel
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              <div>
+                <button
+                  onClick={() => setShowAdvancedDetails(!showAdvancedDetails)}
+                  className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 mr-3"
+                >
+                  <BrainCircuit className="h-4 w-4 mr-2" />
+                  {showAdvancedDetails ? 'Hide Details' : 'Show Details'}
+                  {showAdvancedDetails ? (
+                    <ChevronUp className="h-4 w-4 ml-2" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4 ml-2" />
+                  )}
+                </button>
+                
+                <button
+                  onClick={onReset}
+                  className="inline-flex items-center px-4 py-2 border-2 border-school-red text-sm font-medium rounded-md text-white bg-school-red hover:bg-school-red/90"
+                >
+                  <ArrowPathIcon className="h-4 w-4 mr-2" />
+                  Retake Questionnaire
+                </button>
+              </div>
+            </div>
+          </motion.div>
+          
+          {showAdvancedDetails && (
+            <motion.div 
+              className="mb-10 bg-gray-50 p-6 rounded-lg border border-gray-200"
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.3 }}
+            >
+              <h3 className="text-xl font-semibold mb-4 text-school-navy">Advanced Analysis</h3>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <h4 className="text-lg font-medium mb-3 text-school-navy">Course Selection Factors</h4>
+                  <div className="bg-white p-4 rounded-lg border border-gray-200 mb-4">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-sm font-medium">Course Preference:</span>
+                      <span className="text-sm font-semibold">
+                        {results.scores.aaPercent > results.scores.aiPercent 
+                          ? `Analysis & Approaches (${results.scores.aaPercent.toFixed(1)}%)` 
+                          : `Applications & Interpretation (${results.scores.aiPercent.toFixed(1)}%)`}
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2.5">
+                      <div 
+                        className="bg-school-navy h-2.5 rounded-full" 
+                        style={{ 
+                          width: `${Math.max(0, Math.min(100, 50 + (results.scores.aaPercent - results.scores.aiPercent) / 2))}%` 
+                        }}
+                      ></div>
+                    </div>
+                    <div className="flex justify-between mt-1">
+                      <span className="text-xs text-gray-500">Analysis & Approaches</span>
+                      <span className="text-xs text-gray-500">Applications & Interpretation</span>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-white p-4 rounded-lg border border-gray-200">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-sm font-medium">Level Preference:</span>
+                      <span className="text-sm font-semibold">
+                        {results.scores.hlPercent > results.scores.slPercent 
+                          ? `Higher Level (${results.scores.hlPercent.toFixed(1)}%)` 
+                          : `Standard Level (${results.scores.slPercent.toFixed(1)}%)`}
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2.5">
+                      <div 
+                        className="bg-school-red h-2.5 rounded-full" 
+                        style={{ 
+                          width: `${Math.max(0, Math.min(100, 50 + (results.scores.hlPercent - results.scores.slPercent) / 2))}%` 
+                        }}
+                      ></div>
+                    </div>
+                    <div className="flex justify-between mt-1">
+                      <span className="text-xs text-gray-500">Higher Level</span>
+                      <span className="text-xs text-gray-500">Standard Level</span>
+                    </div>
+                  </div>
+                  
+                  <div className="mt-4">
+                    <ul className="list-disc pl-5 space-y-2 text-gray-700">
+                      <li>You selected {totalSelections} options across {Object.keys(answers).length} questions</li>
+                      <li>Your response pattern indicates a {confidence >= 75 ? 'strong' : confidence >= 60 ? 'moderate' : 'mild'} preference</li>
+                      <li>Course confidence: <span className="font-medium">{results.scores.courseConfidence.toFixed(1)}%</span></li>
+                      <li>Level confidence: <span className="font-medium">{results.scores.levelConfidence.toFixed(1)}%</span></li>
+                    </ul>
+                  </div>
+                </div>
+                
+                <div>
+                  <h4 className="text-lg font-medium mb-3 text-school-navy">Key Topics in {courseInfo.title}</h4>
+                  <div className="bg-white p-4 rounded-lg border border-gray-200 mb-4">
+                    <ul className="list-disc pl-5 space-y-2 text-gray-700">
+                      {courseInfo.topics.split(', ').map((topic, i) => (
+                        <li key={i}>{topic}</li>
+                      ))}
+                    </ul>
+                  </div>
+                  
+                  <h4 className="text-lg font-medium mb-3 text-school-navy mt-4">Strengths & Considerations</h4>
+                  <div className="bg-white p-4 rounded-lg border border-gray-200">
+                    <h5 className="font-medium text-sm mb-2 text-school-navy">Your Mathematical Strengths:</h5>
+                    <ul className="list-disc pl-5 space-y-1 text-gray-700 text-sm mb-4">
+                      {course === 'AA' ? (
+                        <>
+                          <li>Abstract thinking and pattern recognition</li>
+                          <li>Understanding mathematical theory</li>
+                          <li>Working with algebraic expressions</li>
+                        </>
+                      ) : (
+                        <>
+                          <li>Connecting mathematics to real-world scenarios</li>
+                          <li>Data analysis and interpretation</li>
+                          <li>Using technology to solve problems</li>
+                        </>
+                      )}
+                      {level === 'HL' && (
+                        <li>Handling complex and challenging concepts</li>
+                      )}
+                    </ul>
+                    
+                    <h5 className="font-medium text-sm mb-2 text-school-navy">Considerations:</h5>
+                    <ul className="list-disc pl-5 space-y-1 text-gray-700 text-sm">
+                      {course === 'AA' ? (
+                        <li>Will need to develop strong algebraic manipulation skills</li>
+                      ) : (
+                        <li>Will need to become comfortable with mathematical modeling</li>
+                      )}
+                      {level === 'HL' ? (
+                        <>
+                          <li>Higher workload with additional topics</li>
+                          <li>More abstract and challenging concepts</li>
+                          <li>May require additional study time outside of class</li>
+                        </>
+                      ) : (
+                        <>
+                          <li>Covers essential concepts with less theoretical depth</li>
+                          <li>More accessible but still requires consistent effort</li>
+                        </>
+                      )}
+                    </ul>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="mt-6">
+                <h4 className="text-lg font-medium mb-2 text-school-navy">Career Pathways</h4>
+                <p className="text-gray-700 mb-2">This mathematics course is particularly suitable for students interested in:</p>
+                
+                <div className="bg-white p-4 rounded-lg border border-gray-200">
+                  {course === 'AA' && level === 'HL' && (
+                    <p>Pure and applied sciences, engineering, computer science, mathematics, architecture, and technology-oriented fields requiring strong theoretical foundations.</p>
+                  )}
+                  {course === 'AA' && level === 'SL' && (
+                    <p>Chemistry, biology, medicine, psychology, environmental sciences, and other STEM fields that require solid mathematical skills without the highest level of abstraction.</p>
+                  )}
+                  {course === 'AI' && level === 'HL' && (
+                    <p>Economics, business, data science, social sciences, environmental management, and fields requiring strong statistical analysis and modeling skills.</p>
+                  )}
+                  {course === 'AI' && level === 'SL' && (
+                    <p>Business administration, humanities, arts, design, communications, and fields where practical mathematical literacy is beneficial but not the primary focus.</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Save Results Form */}
+          {onSaveResults && !studentInfo && !saveSuccess && (
+            <motion.div className="mb-8" variants={itemVariants}>
+              {!showSaveForm ? (
+                <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-r">
+                  <div className="flex">
+                    <div className="flex-shrink-0">
+                      <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <div className="ml-3">
+                      <p className="text-sm text-yellow-700">
+                        Would you like to save your results for discussion with counselors?
+                      </p>
+                      <div className="mt-4">
+                        <motion.button
+                          type="button"
+                          onClick={() => setShowSaveForm(true)}
+                          className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-school-navy hover:bg-school-navy/90"
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                        >
+                          <Save className="h-4 w-4 mr-1" />
+                          Save Results
+                        </motion.button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-white border border-gray-200 rounded-lg p-6">
+                  <h3 className="text-lg font-medium text-school-navy mb-4">Save Your Results</h3>
+                  <form onSubmit={handleSave} className="space-y-4">
+                    <div>
+                      <label htmlFor="name" className="block text-sm font-medium text-gray-700">Full Name</label>
+                      <div className="mt-1 relative rounded-md shadow-sm">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                          <User className="h-5 w-5 text-gray-400" />
+                        </div>
+                        <input
+                          type="text"
+                          id="name"
+                          className="focus:ring-school-navy focus:border-school-navy block w-full pl-10 sm:text-sm border-gray-300 rounded-md"
+                          placeholder="John Smith"
+                          value={name}
+                          onChange={(e) => setName(e.target.value)}
+                          required
+                        />
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <label htmlFor="email" className="block text-sm font-medium text-gray-700">School Email</label>
+                      <div className="mt-1 relative rounded-md shadow-sm">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                          <Mail className="h-5 w-5 text-gray-400" />
+                        </div>
+                        <input
+                          type="email"
+                          id="email"
+                          className="focus:ring-school-navy focus:border-school-navy block w-full pl-10 sm:text-sm border-gray-300 rounded-md"
+                          placeholder="john.smith@school.edu"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          required
+                        />
+                      </div>
+                    </div>
+                    
+                    <div className="flex space-x-3">
+                      <motion.button
+                        type="submit"
+                        className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-school-navy hover:bg-school-navy/90"
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                      >
+                        <Save className="h-4 w-4 mr-1" />
+                        Save
+                      </motion.button>
+                      <button
+                        type="button"
+                        onClick={() => setShowSaveForm(false)}
+                        className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              )}
+            </motion.div>
+          )}
+
+          {/* Success message */}
+          {(saveSuccess || studentInfo) && (
+            <motion.div 
+              className="mb-8 bg-green-50 border-l-4 border-green-400 p-4 rounded-r"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.5 }}
+              variants={itemVariants}
+            >
+              <div className="flex">
+                <div className="flex-shrink-0">
+                  <Check className="h-5 w-5 text-green-400" />
+                </div>
+                <div className="ml-3">
+                  <p className="text-sm text-green-700">
+                    Results saved successfully for <strong>{studentInfo?.name || name}</strong>. 
+                    Your math teacher will discuss these results with you.
+                  </p>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+export default Results;
